@@ -78,11 +78,17 @@ def modify_DeepH_hybrid(input_path, element_rc, only_S):
             os.system("mv hamiltonians_refined.h5 hamiltonians.h5")
 
     input_path = Path(input_path)
+    has_subdir = False
     for work_dir in input_path.iterdir():
         if work_dir.is_dir():
+            has_subdir = True
+            break
+
+    if has_subdir:
+        for work_dir in tqdm(list(input_path.iterdir())):
             process(work_dir, element_rc, only_S)
-        else:
-            process(input_path, element_rc, only_S)
+    else:
+        process(input_path, element_rc, only_S)
     
 
 if __name__ == '__main__':
