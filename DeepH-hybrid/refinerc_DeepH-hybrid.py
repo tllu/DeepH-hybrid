@@ -8,6 +8,10 @@ import json
 import argparse
 import os
 
+from pathlib import Path
+from tqdm import tqdm
+
+
 Bohr2Ang = 0.52918
 
 def modify_h5(h5_in, h5_out, Rxlist, Rylist, Rzlist, max_rc, all_atoms, lat, element_rc, element_info, nao):
@@ -38,40 +42,48 @@ def modify_h5(h5_in, h5_out, Rxlist, Rylist, Rzlist, max_rc, all_atoms, lat, ele
             for key,value in S_new.items():
                 S_new_f[key] = value
 
-def modify_DeepH_hybrid(input_path, element_rc, only_S):
-    # generate Rxlist, Rylist, Rzlist according to reciprocal cell and maximal cutoff
-    os.chdir(input_path)
-    max_rc = max(element_rc.values())
-    rlat = np.transpose(np.loadtxt("rlat.dat"))
-    nRx = (int(np.ceil(max_rc*Bohr2Ang/np.pi*np.linalg.norm(rlat[0,:]))) +1) * 2 - 1
-    nRy = (int(np.ceil(max_rc*Bohr2Ang/np.pi*np.linalg.norm(rlat[1,:]))) +1) * 2 - 1
-    nRz = (int(np.ceil(max_rc*Bohr2Ang/np.pi*np.linalg.norm(rlat[2,:]))) +1) * 2 - 1
-    Rxlist = np.arange(nRx)-int((nRx-1)/2)
-    Rylist = np.arange(nRy)-int((nRy-1)/2)
-    Rzlist = np.arange(nRz)-int((nRz-1)/2)
+def modify_DeepH_hybrid(input_path, element_rc, only_S):    
+    def process(work_dir, element_rc, only_S):
+        # generate Rxlist, Rylist, Rzlist according to reciprocal cell and maximal cutoff
+        os.chdir(work_dir)
+        max_rc = max(element_rc.values())
+        rlat = np.transpose(np.loadtxt("rlat.dat"))
+        nRx = (int(np.ceil(max_rc*Bohr2Ang/np.pi*np.linalg.norm(rlat[0,:]))) +1) * 2 - 1
+        nRy = (int(np.ceil(max_rc*Bohr2Ang/np.pi*np.linalg.norm(rlat[1,:]))) +1) * 2 - 1
+        nRz = (int(np.ceil(max_rc*Bohr2Ang/np.pi*np.linalg.norm(rlat[2,:]))) +1) * 2 - 1
+        Rxlist = np.arange(nRx)-int((nRx-1)/2)
+        Rylist = np.arange(nRy)-int((nRy-1)/2)
+        Rzlist = np.arange(nRz)-int((nRz-1)/2)
 
-    all_atoms = np.transpose(np.loadtxt("site_positions.dat"))
-    nao = {} # orbital number of every site
-    element_info = np.loadtxt("element.dat")
-    with open("orbital_types.dat", 'r') as ot_f:
-        this_ia = 1
-        line = ot_f.readline()
-        while line:
-            line = line.strip().split()
-            this_nao = 0
-            for itype in range(len(line)):
-                this_nao += int(line[itype]) * 2 + 1
-            nao[this_ia] = this_nao
-            this_ia += 1
+        all_atoms = np.transpose(np.loadtxt("site_positions.dat"))
+        nao = {} # orbital number of every site
+        element_info = np.loadtxt("element.dat")
+        with open("orbital_types.dat", 'r') as ot_f:
+            this_ia = 1
             line = ot_f.readline()
-    lat = np.transpose(np.loadtxt("lat.dat"))
+            while line:
+                line = line.strip().split()
+                this_nao = 0
+                for itype in range(len(line)):
+                    this_nao += int(line[itype]) * 2 + 1
+                nao[this_ia] = this_nao
+                this_ia += 1
+                line = ot_f.readline()
+        lat = np.transpose(np.loadtxt("lat.dat"))
 
-    modify_h5("overlaps.h5","overlaps_refined.h5", Rxlist, Rylist, Rzlist, max_rc, all_atoms, lat, element_rc, element_info, nao)
-    os.system("mv overlaps_refined.h5 overlaps.h5")
-    if not only_S:
-        modify_h5("hamiltonians.h5","hamiltonians_refined.h5", Rxlist, Rylist, Rzlist, max_rc, all_atoms, lat, element_rc, element_info, nao)
-        os.system("mv hamiltonians_refined.h5 hamiltonians.h5")
+        modify_h5("overlaps.h5","overlaps_refined.h5", Rxlist, Rylist, Rzlist, max_rc, all_atoms, lat, element_rc, element_info, nao)
+        os.system("mv overlaps_refined.h5 overlaps.h5")
+        if not only_S:
+            modify_h5("hamiltonians.h5","hamiltonians_refined.h5", Rxlist, Rylist, Rzlist, max_rc, all_atoms, lat, element_rc, element_info, nao)
+            os.system("mv hamiltonians_refined.h5 hamiltonians.h5")
 
+    input_path = Path(input_path)
+    for work_dir in input_path.iterdir():
+        if work_dir.is_dir():
+            process(work_dir, element_rc, only_S)
+        else:
+            process(input_path, element_rc, only_S)
+    
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Modifications for DeepH-hybrid')
