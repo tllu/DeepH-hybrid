@@ -45,9 +45,11 @@ def modify_h5(h5_in, h5_out, Rxlist, Rylist, Rzlist, max_rc, all_atoms, lat, ele
 
 def process(work_dir, element_rc, only_S):
     # generate Rxlist, Rylist, Rzlist according to reciprocal cell and maximal cutoff
-    os.chdir(work_dir)
+    
+    work_dir = Path(work_dir)
+    
     max_rc = max(element_rc.values())
-    rlat = np.transpose(np.loadtxt("rlat.dat"))
+    rlat = np.transpose(np.loadtxt(  work_dir / "rlat.dat" ))
     nRx = (int(np.ceil(max_rc*Bohr2Ang/np.pi*np.linalg.norm(rlat[0,:]))) +1) * 2 - 1
     nRy = (int(np.ceil(max_rc*Bohr2Ang/np.pi*np.linalg.norm(rlat[1,:]))) +1) * 2 - 1
     nRz = (int(np.ceil(max_rc*Bohr2Ang/np.pi*np.linalg.norm(rlat[2,:]))) +1) * 2 - 1
@@ -55,10 +57,10 @@ def process(work_dir, element_rc, only_S):
     Rylist = np.arange(nRy)-int((nRy-1)/2)
     Rzlist = np.arange(nRz)-int((nRz-1)/2)
 
-    all_atoms = np.transpose(np.loadtxt("site_positions.dat"))
+    all_atoms = np.transpose(np.loadtxt( work_dir / "site_positions.dat" ))
     nao = {} # orbital number of every site
-    element_info = np.loadtxt("element.dat")
-    with open("orbital_types.dat", 'r') as ot_f:
+    element_info = np.loadtxt( work_dir / "element.dat" )
+    with open( work_dir / "orbital_types.dat", 'r') as ot_f:
         this_ia = 1
         line = ot_f.readline()
         while line:
@@ -69,13 +71,42 @@ def process(work_dir, element_rc, only_S):
             nao[this_ia] = this_nao
             this_ia += 1
             line = ot_f.readline()
-    lat = np.transpose(np.loadtxt("lat.dat"))
+    lat = np.transpose(np.loadtxt( work_dir / "lat.dat" ))
 
-    modify_h5("overlaps.h5","overlaps_refined.h5", Rxlist, Rylist, Rzlist, max_rc, all_atoms, lat, element_rc, element_info, nao)
-    os.system("mv overlaps_refined.h5 overlaps.h5")
+    overlaps_in_path = work_dir / "overlaps.h5"
+    overlaps_refined_path = work_dir / "overlaps_refined.h5"
+    modify_h5(
+        overlaps_in_path,
+        overlaps_refined_path,
+        Rxlist,
+        Rylist, 
+        Rzlist, 
+        max_rc, 
+        all_atoms, 
+        lat, 
+        element_rc, 
+        element_info, 
+        nao
+    )
+    os.rename(overlaps_refined_path, overlaps_in_path)
+    
     if not only_S:
-        modify_h5("hamiltonians.h5","hamiltonians_refined.h5", Rxlist, Rylist, Rzlist, max_rc, all_atoms, lat, element_rc, element_info, nao)
-        os.system("mv hamiltonians_refined.h5 hamiltonians.h5")
+        hamiltonians_in_path = work_dir / "hamiltonians.h5"
+        hamiltonians_refined_path = work_dir / "hamiltonians_refined.h5"
+        modify_h5(
+            hamiltonians_in_path,
+            hamiltonians_refined_path, 
+            Rxlist, 
+            Rylist, 
+            Rzlist, 
+            max_rc, 
+            all_atoms, 
+            lat, 
+            element_rc, 
+            element_info, 
+            nao
+        )
+        os.rename(hamiltonians_refined_path, hamiltonians_in_path)
 
 
 def modify_DeepH_hybrid(input_path, element_rc, only_S, multiprocess, n_jobs):    
