@@ -2,14 +2,14 @@
 # Coded by ZC Tang @ Tsinghua Univ for DeepH-hybrid support. e-mail: az_txycha@126.com
 # Please follow the instructions in "README" to use this script
 
-import numpy as np 
+import os
 import h5py
 import json
 import argparse
-import os
-
-from pathlib import Path
+import numpy as np
 from tqdm import tqdm
+from pathlib import Path
+from pathos.multiprocessing import ProcessingPool as Pool
 
 
 Bohr2Ang = 0.52918
@@ -42,41 +42,43 @@ def modify_h5(h5_in, h5_out, Rxlist, Rylist, Rzlist, max_rc, all_atoms, lat, ele
             for key,value in S_new.items():
                 S_new_f[key] = value
 
-def modify_DeepH_hybrid(input_path, element_rc, only_S):    
-    def process(work_dir, element_rc, only_S):
-        # generate Rxlist, Rylist, Rzlist according to reciprocal cell and maximal cutoff
-        os.chdir(work_dir)
-        max_rc = max(element_rc.values())
-        rlat = np.transpose(np.loadtxt("rlat.dat"))
-        nRx = (int(np.ceil(max_rc*Bohr2Ang/np.pi*np.linalg.norm(rlat[0,:]))) +1) * 2 - 1
-        nRy = (int(np.ceil(max_rc*Bohr2Ang/np.pi*np.linalg.norm(rlat[1,:]))) +1) * 2 - 1
-        nRz = (int(np.ceil(max_rc*Bohr2Ang/np.pi*np.linalg.norm(rlat[2,:]))) +1) * 2 - 1
-        Rxlist = np.arange(nRx)-int((nRx-1)/2)
-        Rylist = np.arange(nRy)-int((nRy-1)/2)
-        Rzlist = np.arange(nRz)-int((nRz-1)/2)
 
-        all_atoms = np.transpose(np.loadtxt("site_positions.dat"))
-        nao = {} # orbital number of every site
-        element_info = np.loadtxt("element.dat")
-        with open("orbital_types.dat", 'r') as ot_f:
-            this_ia = 1
+def process(work_dir, element_rc, only_S):
+    # generate Rxlist, Rylist, Rzlist according to reciprocal cell and maximal cutoff
+    os.chdir(work_dir)
+    max_rc = max(element_rc.values())
+    rlat = np.transpose(np.loadtxt("rlat.dat"))
+    nRx = (int(np.ceil(max_rc*Bohr2Ang/np.pi*np.linalg.norm(rlat[0,:]))) +1) * 2 - 1
+    nRy = (int(np.ceil(max_rc*Bohr2Ang/np.pi*np.linalg.norm(rlat[1,:]))) +1) * 2 - 1
+    nRz = (int(np.ceil(max_rc*Bohr2Ang/np.pi*np.linalg.norm(rlat[2,:]))) +1) * 2 - 1
+    Rxlist = np.arange(nRx)-int((nRx-1)/2)
+    Rylist = np.arange(nRy)-int((nRy-1)/2)
+    Rzlist = np.arange(nRz)-int((nRz-1)/2)
+
+    all_atoms = np.transpose(np.loadtxt("site_positions.dat"))
+    nao = {} # orbital number of every site
+    element_info = np.loadtxt("element.dat")
+    with open("orbital_types.dat", 'r') as ot_f:
+        this_ia = 1
+        line = ot_f.readline()
+        while line:
+            line = line.strip().split()
+            this_nao = 0
+            for itype in range(len(line)):
+                this_nao += int(line[itype]) * 2 + 1
+            nao[this_ia] = this_nao
+            this_ia += 1
             line = ot_f.readline()
-            while line:
-                line = line.strip().split()
-                this_nao = 0
-                for itype in range(len(line)):
-                    this_nao += int(line[itype]) * 2 + 1
-                nao[this_ia] = this_nao
-                this_ia += 1
-                line = ot_f.readline()
-        lat = np.transpose(np.loadtxt("lat.dat"))
+    lat = np.transpose(np.loadtxt("lat.dat"))
 
-        modify_h5("overlaps.h5","overlaps_refined.h5", Rxlist, Rylist, Rzlist, max_rc, all_atoms, lat, element_rc, element_info, nao)
-        os.system("mv overlaps_refined.h5 overlaps.h5")
-        if not only_S:
-            modify_h5("hamiltonians.h5","hamiltonians_refined.h5", Rxlist, Rylist, Rzlist, max_rc, all_atoms, lat, element_rc, element_info, nao)
-            os.system("mv hamiltonians_refined.h5 hamiltonians.h5")
+    modify_h5("overlaps.h5","overlaps_refined.h5", Rxlist, Rylist, Rzlist, max_rc, all_atoms, lat, element_rc, element_info, nao)
+    os.system("mv overlaps_refined.h5 overlaps.h5")
+    if not only_S:
+        modify_h5("hamiltonians.h5","hamiltonians_refined.h5", Rxlist, Rylist, Rzlist, max_rc, all_atoms, lat, element_rc, element_info, nao)
+        os.system("mv hamiltonians_refined.h5 hamiltonians.h5")
 
+
+def modify_DeepH_hybrid(input_path, element_rc, only_S, multiprocess, n_jobs):    
     input_path = Path(input_path)
     has_subdir = False
     for work_dir in input_path.iterdir():
@@ -85,8 +87,20 @@ def modify_DeepH_hybrid(input_path, element_rc, only_S):
             break
 
     if has_subdir:
-        for work_dir in tqdm(list(input_path.iterdir())):
-            process(work_dir, element_rc, only_S)
+        if multiprocess:
+            pool_dict = {'nodes': n_jobs}
+            with Pool(**pool_dict) as pool:            
+                files_to_process = list(input_path.iterdir())
+                total_files = len(files_to_process)
+                
+                for _ in tqdm(
+                    pool.uimap(lambda x: process(x, element_rc, only_S), files_to_process), 
+                    total=total_files
+                ):
+                    pass
+        else:
+            for work_dir in tqdm(list(input_path.iterdir())):
+                process(work_dir, element_rc, only_S)
     else:
         process(input_path, element_rc, only_S)
     
@@ -104,11 +118,21 @@ if __name__ == '__main__':
     parser.add_argument(
         '-S','--only_S', type=int, default=0
         )
+    parser.add_argument(
+        '-mp', '--multiprocess', action='store_true',
+        help='use multiprocess to speed up the process, default is False',
+    )
+    parser.add_argument(
+        '-j', '--n_jobs', type=int, default=1,
+        help='number of jobs to run in parallel, default is 1',
+    )
     args = parser.parse_args()
 
     input_path = args.input_dir
     config_path = args.config
     only_S = bool(args.only_S)
+    multiprocess = args.multiprocess
+    n_jobs = args.n_jobs
 
     with open(config_path, 'r') as config_f:
         element_rc_raw = json.load(config_f)
@@ -116,4 +140,4 @@ if __name__ == '__main__':
         for (key, value) in element_rc_raw.items():
             element_rc[int(key)] = value
     
-    modify_DeepH_hybrid(input_path, element_rc, only_S)
+    modify_DeepH_hybrid(input_path, element_rc, only_S, multiprocess, n_jobs)
