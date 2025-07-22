@@ -89,6 +89,7 @@ def modify_DeepH_hybrid(input_path, element_rc, only_S, multiprocess, n_jobs):
     if has_subdir:
         if multiprocess:
             pool_dict = {'nodes': n_jobs}
+            print(f"Using multiprocess with {n_jobs} jobs.")
             with Pool(**pool_dict) as pool:            
                 files_to_process = list(input_path.iterdir())
                 total_files = len(files_to_process)
