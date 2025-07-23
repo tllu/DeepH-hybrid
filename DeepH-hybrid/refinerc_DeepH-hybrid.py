@@ -57,9 +57,9 @@ def process(work_dir, element_rc, only_S):
     Rylist = np.arange(nRy)-int((nRy-1)/2)
     Rzlist = np.arange(nRz)-int((nRz-1)/2)
 
-    all_atoms = np.transpose(np.loadtxt( work_dir / "site_positions.dat" ))
+    all_atoms = np.transpose(np.loadtxt( work_dir / "site_positions.dat", ndmin=2 ))
     nao = {} # orbital number of every site
-    element_info = np.loadtxt( work_dir / "element.dat" )
+    element_info = np.loadtxt( work_dir / "element.dat", ndmin=1 )
     with open( work_dir / "orbital_types.dat", 'r') as ot_f:
         this_ia = 1
         line = ot_f.readline()
