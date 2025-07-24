@@ -48,6 +48,14 @@ def process(work_dir, element_rc, only_S):
     
     work_dir = Path(work_dir)
     
+    element_info = np.loadtxt( work_dir / "element.dat", ndmin=1 )
+    
+    _element_info = list( set(element_info) )
+    max_rc = element_rc[_element_info[0]]
+    for el_number in _element_info[1:]:
+        if element_rc[el_number] > max_rc:
+            max_rc = element_rc[el_number]
+    
     max_rc = max(element_rc.values())
     rlat = np.transpose(np.loadtxt(  work_dir / "rlat.dat" ))
     nRx = (int(np.ceil(max_rc*Bohr2Ang/np.pi*np.linalg.norm(rlat[0,:]))) +1) * 2 - 1
@@ -59,7 +67,7 @@ def process(work_dir, element_rc, only_S):
 
     all_atoms = np.transpose(np.loadtxt( work_dir / "site_positions.dat", ndmin=2 ))
     nao = {} # orbital number of every site
-    element_info = np.loadtxt( work_dir / "element.dat", ndmin=1 )
+    
     with open( work_dir / "orbital_types.dat", 'r') as ot_f:
         this_ia = 1
         line = ot_f.readline()
