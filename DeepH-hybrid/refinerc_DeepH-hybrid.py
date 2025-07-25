@@ -56,7 +56,8 @@ def process(work_dir, element_rc, only_S):
         if element_rc[el_number] > max_rc:
             max_rc = element_rc[el_number]
     
-    max_rc = max(element_rc.values())
+    print(max_rc)
+    
     rlat = np.transpose(np.loadtxt(  work_dir / "rlat.dat" ))
     nRx = (int(np.ceil(max_rc*Bohr2Ang/np.pi*np.linalg.norm(rlat[0,:]))) +1) * 2 - 1
     nRy = (int(np.ceil(max_rc*Bohr2Ang/np.pi*np.linalg.norm(rlat[1,:]))) +1) * 2 - 1
