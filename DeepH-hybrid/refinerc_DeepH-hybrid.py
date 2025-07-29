@@ -155,6 +155,10 @@ if __name__ == '__main__':
         help='path of the config file for modification of the cut-off radius'
         )
     parser.add_argument(
+        '-g', '--gamma', type=float, default=2.0,
+        help='the adjustable parameter for the cut-off radius, default is 2.0'
+        )
+    parser.add_argument(
         '-S','--only_S', type=int, default=0
         )
     parser.add_argument(
@@ -169,6 +173,7 @@ if __name__ == '__main__':
 
     input_path = args.input_dir
     config_path = args.config
+    gamma = args.gamma
     only_S = bool(args.only_S)
     multiprocess = args.multiprocess
     n_jobs = args.n_jobs
@@ -177,6 +182,6 @@ if __name__ == '__main__':
         element_rc_raw = json.load(config_f)
         element_rc = {}
         for (key, value) in element_rc_raw.items():
-            element_rc[int(key)] = value
+            element_rc[int(key)] = value * gamma
     
     modify_DeepH_hybrid(input_path, element_rc, only_S, multiprocess, n_jobs)
